@@ -9,49 +9,112 @@
   <style>
     * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
     body {
-      margin: 0; padding: 0; background: #111118; color: #fff;
+      margin: 0; padding: 0; background: #0d0e15; color: #fff;
       font-family: monospace; display: flex; flex-direction: column;
       align-items: center; justify-content: center; height: 100vh; overflow: hidden;
     }
     #hud {
       width: 100%; max-width: 512px; display: flex; justify-content: space-between;
-      align-items: center; padding: 8px 12px; background: #1e1e2c; border: 2px solid #3a3a52;
-      font-size: 13px;
+      align-items: center; padding: 8px 10px; background: #181926; border: 2px solid #353852;
+      font-size: 12px; gap: 6px;
+    }
+    .stats { display: flex; gap: 10px; align-items: center; font-weight: bold; }
+    .gold-txt { color: #fde047; }
+    .hp-txt { color: #f87171; }
+    .hud-btns { display: flex; gap: 6px; align-items: center; }
+    .shop-toggle {
+      background: #7c3aed; color: #fff; padding: 6px 10px;
+      font-weight: bold; border-radius: 4px; cursor: pointer; border: 1px solid #c4b5fd;
+      font-family: monospace; font-size: 12px;
     }
     .pi-badge {
-      background: #ffb700; color: #111; padding: 6px 12px;
-      font-weight: bold; border-radius: 4px; cursor: pointer; border: none; font-family: monospace; font-size: 12px;
+      background: #ffb700; color: #111; padding: 6px 10px;
+      font-weight: bold; border-radius: 4px; cursor: pointer; border: none;
+      font-family: monospace; font-size: 11px;
+    }
+    #game-wrap {
+      position: relative; width: 100%; max-width: 512px; aspect-ratio: 1 / 1;
     }
     canvas {
-      width: 100%; max-width: 512px; aspect-ratio: 1 / 1;
-      background: #263829; border: 2px solid #3a3a52;
+      width: 100%; height: 100%; display: block;
+      background: #1e2d24; border: 2px solid #353852;
       image-rendering: pixelated; image-rendering: crisp-edges;
     }
+    #shop-modal {
+      display: none; position: absolute; inset: 12px;
+      background: rgba(15, 17, 28, 0.96); border: 2px solid #facc15;
+      border-radius: 8px; padding: 14px; flex-direction: column;
+      justify-content: space-between; z-index: 10;
+    }
+    #shop-modal.open { display: flex; }
+    .shop-header {
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid #353852; padding-bottom: 8px; font-size: 15px;
+      color: #fde047; font-weight: bold;
+    }
+    .close-shop {
+      background: #ef4444; color: #fff; border: none; border-radius: 4px;
+      padding: 4px 10px; font-family: monospace; font-weight: bold; cursor: pointer;
+    }
+    .shop-items { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; overflow-y: auto; }
+    .shop-card {
+      display: flex; justify-content: space-between; align-items: center;
+      background: #1f2233; border: 1px solid #3f4464; padding: 8px 10px; border-radius: 6px;
+    }
+    .item-info { display: flex; flex-direction: column; gap: 3px; }
+    .item-title { font-weight: bold; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+    .color-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .item-desc { font-size: 11px; color: #9ca3af; }
+    .buy-btn {
+      background: #facc15; color: #111; border: none; padding: 6px 10px;
+      border-radius: 4px; font-family: monospace; font-weight: bold; font-size: 11px; cursor: pointer;
+    }
+    .buy-btn:disabled { background: #374151; color: #9ca3af; cursor: default; }
     #controls {
       width: 100%; max-width: 512px; display: flex; justify-content: space-between;
-      align-items: center; padding: 12px 20px;
+      align-items: center; padding: 10px 20px;
     }
     .dpad { display: grid; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px); gap: 4px; }
     .btn {
-      background: #2b2b40; border: 2px solid #555577; color: #fff;
+      background: #23263a; border: 2px solid #4a4f70; color: #fff;
       display: flex; align-items: center; justify-content: center;
       font-weight: bold; font-size: 16px; border-radius: 6px; touch-action: manipulation;
     }
     .btn:active { background: #ffb700; color: #000; }
     .atk-btn {
-      width: 84px; height: 84px; border-radius: 50%; background: #a8283b;
-      border: 3px solid #ff5c72; font-size: 15px;
+      width: 86px; height: 86px; border-radius: 50%; background: #991b1b;
+      border: 3px solid #f87171; font-size: 14px; box-shadow: 0 0 12px rgba(248,113,113,0.4);
     }
   </style>
 </head>
 <body>
 
   <div id="hud">
-    <div>HP: <span id="hp">100</span> | GOLD: <span id="gold">0</span></div>
-    <button class="pi-badge" id="piLoginBtn">Tap to Sign In</button>
+    <div class="stats">
+      <span class="hp-txt">♥ <span id="hp">100</span></span>
+      <span class="gold-txt">🪙 <span id="gold">0</span>G</span>
+      <span id="swordName" style="color:#fef08a;">Lv1 Blade</span>
+    </div>
+    <div class="hud-btns">
+      <button class="shop-toggle" id="shopBtn">🛒 SHOP</button>
+      <button class="pi-badge" id="piLoginBtn">Tap to Sign In</button>
+    </div>
   </div>
 
-  <canvas id="game" width="160" height="160"></canvas>
+  <div id="game-wrap">
+    <canvas id="game" width="160" height="160"></canvas>
+
+    <div id="shop-modal">
+      <div class="shop-header">
+        <span>⚒️ POLLUX ARMORY</span>
+        <button class="close-shop" id="closeShopBtn">X</button>
+      </div>
+      <div class="shop-items" id="shopList"></div>
+      <div style="font-size:11px; color:#9ca3af; text-align:center;">
+        Slay Goblins (+8G) & Dark Knights (+18G) to forge stronger blades!
+      </div>
+    </div>
+  </div>
 
   <div id="controls">
     <div class="dpad">
@@ -59,7 +122,7 @@
       <div class="btn" data-key="ArrowLeft">◀</div><div></div><div class="btn" data-key="ArrowRight">▶</div>
       <div></div><div class="btn" data-key="ArrowDown">▼</div><div></div>
     </div>
-    <div class="btn atk-btn" data-key="Space">SWORD</div>
+    <div class="btn atk-btn" data-key="Space">SLASH</div>
   </div>
 
 <script>
@@ -67,6 +130,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 
+// --- PI NETWORK AUTHENTICATION ---
 let sessionToken = null;
 let verifiedUser = null;
 let isAuthenticating = false;
@@ -78,15 +142,12 @@ function onIncompletePaymentFound(payment) {
 async function authenticateWithPi() {
   if (isAuthenticating || sessionToken) return;
   const btn = document.getElementById('piLoginBtn');
-
   if (typeof window.Pi === 'undefined') {
     btn.textContent = "SDK Loading...";
     return;
   }
-
   isAuthenticating = true;
   btn.textContent = "Connecting...";
-
   try {
     await window.Pi.init({ version: "2.0" });
     const authResult = await window.Pi.authenticate(["username"], onIncompletePaymentFound);
@@ -99,168 +160,4 @@ async function authenticateWithPi() {
     });
 
     if (!response.ok) throw new Error("Token exchange failed");
-
-    const data = await response.json();
-    sessionToken = data.sessionToken;
-    verifiedUser = data.user;
-
-    btn.textContent = `@${verifiedUser.username}`;
-    btn.style.background = "#4ade80";
-  } catch (err) {
-    console.error("Auth Error:", err);
-    btn.textContent = "Sign In Failed - Retry";
-    isAuthenticating = false;
-  }
-}
-
-document.getElementById('piLoginBtn').addEventListener('click', authenticateWithPi);
-
-// --- INPUTS ---
-const keys = {};
-window.addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'Space') triggerAttack(); });
-window.addEventListener('keyup', e => keys[e.code] = false);
-
-document.querySelectorAll('.btn').forEach(btn => {
-  const k = btn.dataset.key;
-  btn.addEventListener('pointerdown', e => { e.preventDefault(); keys[k] = true; if (k === 'Space') triggerAttack(); });
-  btn.addEventListener('pointerup', e => { e.preventDefault(); keys[k] = false; });
-  btn.addEventListener('pointerleave', () => keys[k] = false);
-});
-
-// --- GAME LOGIC ---
-const player = { x: 76, y: 76, w: 8, h: 8, speed: 60, dir: 'down', hp: 100, gold: 0, atkTimer: 0, invuln: 0 };
-const slimes = [];
-const walls = [
-  {x: 24, y: 24, w: 16, h: 16}, {x: 120, y: 24, w: 16, h: 16},
-  {x: 24, y: 120, w: 16, h: 16}, {x: 120, y: 120, w: 16, h: 16}
-];
-
-function spawnSlime() {
-  const edge = Math.floor(Math.random() * 4);
-  const x = edge === 0 ? 8 : edge === 1 ? 144 : Math.random() * 140 + 8;
-  const y = edge === 2 ? 8 : edge === 3 ? 144 : Math.random() * 140 + 8;
-  slimes.push({ x, y, w: 8, h: 8, hp: 2, speed: 22, knockX: 0, knockY: 0 });
-}
-for (let i = 0; i < 4; i++) spawnSlime();
-
-function aabb(a, b) {
-  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-}
-
-function triggerAttack() {
-  if (player.atkTimer > 0 || player.hp <= 0) return;
-  player.atkTimer = 0.18;
-  const reach = 10;
-  const hitbox = {
-    x: player.dir === 'left' ? player.x - reach : player.dir === 'right' ? player.x + player.w : player.x - 2,
-    y: player.dir === 'up' ? player.y - reach : player.dir === 'down' ? player.y + player.h : player.y - 2,
-    w: (player.dir === 'left' || player.dir === 'right') ? reach : 12,
-    h: (player.dir === 'up' || player.dir === 'down') ? reach : 12
-  };
-  player.lastHitbox = hitbox;
-
-  for (let i = slimes.length - 1; i >= 0; i--) {
-    const s = slimes[i];
-    if (aabb(hitbox, s)) {
-      s.hp -= 1;
-      const dx = (s.x - player.x) || 1, dy = (s.y - player.y) || 1;
-      const len = Math.hypot(dx, dy);
-      s.knockX = (dx / len) * 110;
-      s.knockY = (dy / len) * 110;
-      if (s.hp <= 0) {
-        slimes.splice(i, 1);
-        player.gold += 5;
-        document.getElementById('gold').textContent = player.gold;
-        setTimeout(spawnSlime, 1000);
-      }
-    }
-  }
-}
-
-let lastTime = performance.now();
-function update(dt) {
-  if (player.hp <= 0) return;
-  if (player.atkTimer > 0) player.atkTimer -= dt;
-  if (player.invuln > 0) player.invuln -= dt;
-
-  let vx = 0, vy = 0;
-  if (keys['ArrowUp'] || keys['KeyW']) { vy = -1; player.dir = 'up'; }
-  if (keys['ArrowDown'] || keys['KeyS']) { vy = 1; player.dir = 'down'; }
-  if (keys['ArrowLeft'] || keys['KeyA']) { vx = -1; player.dir = 'left'; }
-  if (keys['ArrowRight'] || keys['KeyD']) { vx = 1; player.dir = 'right'; }
-  if (vx !== 0 && vy !== 0) { vx *= 0.7071; vy *= 0.7071; }
-
-  const nextX = Math.max(4, Math.min(148, player.x + vx * player.speed * dt));
-  const nextY = Math.max(4, Math.min(148, player.y + vy * player.speed * dt));
-
-  if (!walls.some(w => aabb({x: nextX, y: player.y, w: player.w, h: player.h}, w))) player.x = nextX;
-  if (!walls.some(w => aabb({x: player.x, y: nextY, w: player.w, h: player.h}, w))) player.y = nextY;
-
-  for (const s of slimes) {
-    const dx = player.x - s.x, dy = player.y - s.y;
-    const dist = Math.hypot(dx, dy) || 1;
-    s.x += ((dx / dist) * s.speed + s.knockX) * dt;
-    s.y += ((dy / dist) * s.speed + s.knockY) * dt;
-    s.knockX *= 0.85; s.knockY *= 0.85;
-
-    if (aabb(player, s) && player.invuln <= 0) {
-      player.hp = Math.max(0, player.hp - 10);
-      player.invuln = 0.6;
-      document.getElementById('hp').textContent = player.hp;
-    }
-  }
-}
-
-function draw() {
-  ctx.fillStyle = '#263829';
-  ctx.fillRect(0, 0, 160, 160);
-
-  for (const w of walls) {
-    ctx.fillStyle = '#4a4e69';
-    ctx.fillRect(w.x, w.y, w.w, w.h);
-    ctx.fillStyle = '#707799';
-    ctx.fillRect(w.x, w.y, w.w, 4);
-  }
-
-  for (const s of slimes) {
-    ctx.fillStyle = '#ff4d6d';
-    ctx.fillRect(Math.round(s.x), Math.round(s.y + 2), 8, 6);
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(Math.round(s.x + 1), Math.round(s.y + 3), 2, 2);
-    ctx.fillRect(Math.round(s.x + 5), Math.round(s.y + 3), 2, 2);
-  }
-
-  if (player.invuln <= 0 || Math.floor(player.invuln * 20) % 2 === 0) {
-    const px = Math.round(player.x), py = Math.round(player.y);
-    ctx.fillStyle = '#38b000';
-    ctx.fillRect(px, py + 3, 8, 5);
-    ctx.fillStyle = '#ffca3a';
-    ctx.fillRect(px + 1, py, 6, 4);
-  }
-
-  if (player.atkTimer > 0 && player.lastHitbox) {
-    ctx.fillStyle = '#e0fbfc';
-    const hb = player.lastHitbox;
-    ctx.fillRect(Math.round(hb.x), Math.round(hb.y), hb.w, hb.h);
-  }
-
-  if (player.hp <= 0) {
-    ctx.fillStyle = 'rgba(0,0,0,0.75)';
-    ctx.fillRect(0, 0, 160, 160);
-    ctx.fillStyle = '#ff4d6d';
-    ctx.font = '10px monospace';
-    ctx.fillText('YOU DIED', 56, 80);
-  }
-}
-
-function loop(now) {
-  const dt = Math.min((now - lastTime) / 1000, 0.1);
-  lastTime = now;
-  update(dt);
-  draw();
-  requestAnimationFrame(loop);
-}
-requestAnimationFrame(loop);
-</script>
-</body>
-</html>
+    const data = await response.
