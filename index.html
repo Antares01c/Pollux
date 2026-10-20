@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://sdk.minepi.com 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://socialchain.app https://backend.appstudio-u7cm9zhmha0ruwv8.piappengine.com; img-src 'self' data:;" />
   <title>Pollux Pixel RPG</title>
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
   <style>
@@ -18,8 +19,8 @@
       font-size: 13px;
     }
     .pi-badge {
-      background: #ffb700; color: #111; padding: 4px 8px;
-      font-weight: bold; border-radius: 3px; cursor: pointer; border: none; font-family: monospace;
+      background: #ffb700; color: #111; padding: 6px 12px;
+      font-weight: bold; border-radius: 4px; cursor: pointer; border: none; font-family: monospace; font-size: 12px;
     }
     canvas {
       width: 100%; max-width: 512px; aspect-ratio: 1 / 1;
@@ -47,7 +48,7 @@
 
   <div id="hud">
     <div>HP: <span id="hp">100</span> | GOLD: <span id="gold">0</span></div>
-    <button class="pi-badge" id="piLoginBtn">Connecting Pi...</button>
+    <button class="pi-badge" id="piLoginBtn">Tap to Sign In</button>
   </div>
 
   <canvas id="game" width="160" height="160"></canvas>
@@ -66,13 +67,200 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 
-// --- AUTO PI NETWORK AUTHENTICATION ---
-async function connectPi() {
+let sessionToken = null;
+let verifiedUser = null;
+let isAuthenticating = false;
+
+function onIncompletePaymentFound(payment) {
+  console.log("Incomplete payment found:", payment);
+}
+
+async function authenticateWithPi() {
+  if (isAuthenticating || sessionToken) return;
   const btn = document.getElementById('piLoginBtn');
-  if (!window.Pi) {
-    btn.textContent = "Guest Mode";
+
+  if (typeof window.Pi === 'undefined') {
+    btn.textContent = "SDK Loading...";
     return;
   }
+
+  isAuthenticating = true;
+  btn.textContent = "Connecting...";
+
   try {
-    window.Pi.init({ version: "2.0", sandbox: false });
-    const auth =
+    await window.Pi.init({ version: "2.0" });
+    const authResult = await window.Pi.authenticate(["username"], onIncompletePaymentFound);
+    const accessToken = authResult.accessToken;
+
+    const response = await fetch("https://backend.appstudio-u7cm9zhmha0ruwv8.piappengine.com/pi/auth/v1/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken: accessToken })
+    });
+
+    if (!response.ok) throw new Error("Token exchange failed");
+
+    const data = await response.json();
+    sessionToken = data.sessionToken;
+    verifiedUser = data.user;
+
+    btn.textContent = `@${verifiedUser.username}`;
+    btn.style.background = "#4ade80";
+  } catch (err) {
+    console.error("Auth Error:", err);
+    btn.textContent = "Sign In Failed - Retry";
+    isAuthenticating = false;
+  }
+}
+
+document.getElementById('piLoginBtn').addEventListener('click', authenticateWithPi);
+
+// --- INPUTS ---
+const keys = {};
+window.addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'Space') triggerAttack(); });
+window.addEventListener('keyup', e => keys[e.code] = false);
+
+document.querySelectorAll('.btn').forEach(btn => {
+  const k = btn.dataset.key;
+  btn.addEventListener('pointerdown', e => { e.preventDefault(); keys[k] = true; if (k === 'Space') triggerAttack(); });
+  btn.addEventListener('pointerup', e => { e.preventDefault(); keys[k] = false; });
+  btn.addEventListener('pointerleave', () => keys[k] = false);
+});
+
+// --- GAME LOGIC ---
+const player = { x: 76, y: 76, w: 8, h: 8, speed: 60, dir: 'down', hp: 100, gold: 0, atkTimer: 0, invuln: 0 };
+const slimes = [];
+const walls = [
+  {x: 24, y: 24, w: 16, h: 16}, {x: 120, y: 24, w: 16, h: 16},
+  {x: 24, y: 120, w: 16, h: 16}, {x: 120, y: 120, w: 16, h: 16}
+];
+
+function spawnSlime() {
+  const edge = Math.floor(Math.random() * 4);
+  const x = edge === 0 ? 8 : edge === 1 ? 144 : Math.random() * 140 + 8;
+  const y = edge === 2 ? 8 : edge === 3 ? 144 : Math.random() * 140 + 8;
+  slimes.push({ x, y, w: 8, h: 8, hp: 2, speed: 22, knockX: 0, knockY: 0 });
+}
+for (let i = 0; i < 4; i++) spawnSlime();
+
+function aabb(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function triggerAttack() {
+  if (player.atkTimer > 0 || player.hp <= 0) return;
+  player.atkTimer = 0.18;
+  const reach = 10;
+  const hitbox = {
+    x: player.dir === 'left' ? player.x - reach : player.dir === 'right' ? player.x + player.w : player.x - 2,
+    y: player.dir === 'up' ? player.y - reach : player.dir === 'down' ? player.y + player.h : player.y - 2,
+    w: (player.dir === 'left' || player.dir === 'right') ? reach : 12,
+    h: (player.dir === 'up' || player.dir === 'down') ? reach : 12
+  };
+  player.lastHitbox = hitbox;
+
+  for (let i = slimes.length - 1; i >= 0; i--) {
+    const s = slimes[i];
+    if (aabb(hitbox, s)) {
+      s.hp -= 1;
+      const dx = (s.x - player.x) || 1, dy = (s.y - player.y) || 1;
+      const len = Math.hypot(dx, dy);
+      s.knockX = (dx / len) * 110;
+      s.knockY = (dy / len) * 110;
+      if (s.hp <= 0) {
+        slimes.splice(i, 1);
+        player.gold += 5;
+        document.getElementById('gold').textContent = player.gold;
+        setTimeout(spawnSlime, 1000);
+      }
+    }
+  }
+}
+
+let lastTime = performance.now();
+function update(dt) {
+  if (player.hp <= 0) return;
+  if (player.atkTimer > 0) player.atkTimer -= dt;
+  if (player.invuln > 0) player.invuln -= dt;
+
+  let vx = 0, vy = 0;
+  if (keys['ArrowUp'] || keys['KeyW']) { vy = -1; player.dir = 'up'; }
+  if (keys['ArrowDown'] || keys['KeyS']) { vy = 1; player.dir = 'down'; }
+  if (keys['ArrowLeft'] || keys['KeyA']) { vx = -1; player.dir = 'left'; }
+  if (keys['ArrowRight'] || keys['KeyD']) { vx = 1; player.dir = 'right'; }
+  if (vx !== 0 && vy !== 0) { vx *= 0.7071; vy *= 0.7071; }
+
+  const nextX = Math.max(4, Math.min(148, player.x + vx * player.speed * dt));
+  const nextY = Math.max(4, Math.min(148, player.y + vy * player.speed * dt));
+
+  if (!walls.some(w => aabb({x: nextX, y: player.y, w: player.w, h: player.h}, w))) player.x = nextX;
+  if (!walls.some(w => aabb({x: player.x, y: nextY, w: player.w, h: player.h}, w))) player.y = nextY;
+
+  for (const s of slimes) {
+    const dx = player.x - s.x, dy = player.y - s.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    s.x += ((dx / dist) * s.speed + s.knockX) * dt;
+    s.y += ((dy / dist) * s.speed + s.knockY) * dt;
+    s.knockX *= 0.85; s.knockY *= 0.85;
+
+    if (aabb(player, s) && player.invuln <= 0) {
+      player.hp = Math.max(0, player.hp - 10);
+      player.invuln = 0.6;
+      document.getElementById('hp').textContent = player.hp;
+    }
+  }
+}
+
+function draw() {
+  ctx.fillStyle = '#263829';
+  ctx.fillRect(0, 0, 160, 160);
+
+  for (const w of walls) {
+    ctx.fillStyle = '#4a4e69';
+    ctx.fillRect(w.x, w.y, w.w, w.h);
+    ctx.fillStyle = '#707799';
+    ctx.fillRect(w.x, w.y, w.w, 4);
+  }
+
+  for (const s of slimes) {
+    ctx.fillStyle = '#ff4d6d';
+    ctx.fillRect(Math.round(s.x), Math.round(s.y + 2), 8, 6);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(Math.round(s.x + 1), Math.round(s.y + 3), 2, 2);
+    ctx.fillRect(Math.round(s.x + 5), Math.round(s.y + 3), 2, 2);
+  }
+
+  if (player.invuln <= 0 || Math.floor(player.invuln * 20) % 2 === 0) {
+    const px = Math.round(player.x), py = Math.round(player.y);
+    ctx.fillStyle = '#38b000';
+    ctx.fillRect(px, py + 3, 8, 5);
+    ctx.fillStyle = '#ffca3a';
+    ctx.fillRect(px + 1, py, 6, 4);
+  }
+
+  if (player.atkTimer > 0 && player.lastHitbox) {
+    ctx.fillStyle = '#e0fbfc';
+    const hb = player.lastHitbox;
+    ctx.fillRect(Math.round(hb.x), Math.round(hb.y), hb.w, hb.h);
+  }
+
+  if (player.hp <= 0) {
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(0, 0, 160, 160);
+    ctx.fillStyle = '#ff4d6d';
+    ctx.font = '10px monospace';
+    ctx.fillText('YOU DIED', 56, 80);
+  }
+}
+
+function loop(now) {
+  const dt = Math.min((now - lastTime) / 1000, 0.1);
+  lastTime = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
