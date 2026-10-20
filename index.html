@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Pollux Pixel RPG</title>
+  <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+  <style>
+    * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+    body {
+      margin: 0; padding: 0; background: #111118; color: #fff;
+      font-family: monospace; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; height: 100vh; overflow: hidden;
+    }
+    #hud {
+      width: 100%; max-width: 512px; display: flex; justify-content: space-between;
+      align-items: center; padding: 8px 12px; background: #1e1e2c; border: 2px solid #3a3a52;
+      font-size: 13px;
+    }
+    .pi-badge {
+      background: #ffb700; color: #111; padding: 4px 8px;
+      font-weight: bold; border-radius: 3px; cursor: pointer; border: none; font-family: monospace;
+    }
+    canvas {
+      width: 100%; max-width: 512px; aspect-ratio: 1 / 1;
+      background: #263829; border: 2px solid #3a3a52;
+      image-rendering: pixelated; image-rendering: crisp-edges;
+    }
+    #controls {
+      width: 100%; max-width: 512px; display: flex; justify-content: space-between;
+      align-items: center; padding: 12px 20px;
+    }
+    .dpad { display: grid; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px); gap: 4px; }
+    .btn {
+      background: #2b2b40; border: 2px solid #555577; color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: bold; font-size: 16px; border-radius: 6px; touch-action: manipulation;
+    }
+    .btn:active { background: #ffb700; color: #000; }
+    .atk-btn {
+      width: 84px; height: 84px; border-radius: 50%; background: #a8283b;
+      border: 3px solid #ff5c72; font-size: 15px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="hud">
+    <div>HP: <span id="hp">100</span> | GOLD: <span id="gold">0</span></div>
+    <button class="pi-badge" id="piLoginBtn">Connecting Pi...</button>
+  </div>
+
+  <canvas id="game" width="160" height="160"></canvas>
+
+  <div id="controls">
+    <div class="dpad">
+      <div></div><div class="btn" data-key="ArrowUp">▲</div><div></div>
+      <div class="btn" data-key="ArrowLeft">◀</div><div></div><div class="btn" data-key="ArrowRight">▶</div>
+      <div></div><div class="btn" data-key="ArrowDown">▼</div><div></div>
+    </div>
+    <div class="btn atk-btn" data-key="Space">SWORD</div>
+  </div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+// --- AUTO PI NETWORK AUTHENTICATION ---
+async function connectPi() {
+  const btn = document.getElementById('piLoginBtn');
+  if (!window.Pi) {
+    btn.textContent = "Guest Mode";
+    return;
+  }
+  try {
+    window.Pi.init({ version: "2.0", sandbox: false });
+    const auth =
